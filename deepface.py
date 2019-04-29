@@ -21,7 +21,7 @@ import os
 face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yolo&returnFaceLandmarks=true"
 
 # init logger
-logger = logging.getLogger('Attendance')
+logger = logging.getLogger('Home pro security')
 logger.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
@@ -40,7 +40,7 @@ except:
     pass
 
 # parse arguments
-parser = argparse.ArgumentParser(description='Awesome Attendance System')
+parser = argparse.ArgumentParser(description='Home pro security System')
 parser.add_argument('--enroll', action='store_true', help='Enable enrollment of unknown faces')
 parser.add_argument('--src', action='store', default=0, nargs='?', help='Set video source; default is usb webcam')
 parser.add_argument('--w', action='store', default=320, nargs='?', help='Set video width')
@@ -68,14 +68,13 @@ print("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
 ret, frame = cap.read()
 
 # catch exit signal
-# in order to save attendance before exiting
 def signal_handler(signal, frame):
     if args.enroll:
-        logger.info("Saving Attendance DB")
+        logger.info("Saving User DB")
         with open('face_data.txt','w') as att:
             att.write(json.dumps(db))
     
-    logger.info("Saving attendance")
+    logger.info("Saving user")
     with open('att_log','w') as att:
         att.write(json.dumps(att_reg, indent=4, sort_keys=True))
 
@@ -108,6 +107,7 @@ def identify_face(embedding):
     if dbtree != "":
         dist, idx = dbtree.query(embedding)                               
         name = db["names"][idx]
+        print(name)
         if dist > (0.4 if args.enroll else 0.5):
             name = "unknown"
     else:
@@ -117,12 +117,10 @@ def identify_face(embedding):
 
 
 # returns minutes since
-# last entry in attendance register
 def mins_since_last_log():
     return ((datetime.datetime.now() - datetime.datetime.strptime(att_reg[-1]['time'], '%Y-%m-%d %H:%M:%S')).seconds/60)
 
 
-# mark attendance
 def mark_present(name):
     if len(att_reg) == 0: 
         logger.info("Detected %s"%name)
@@ -182,7 +180,7 @@ while True:
                         
         cv2.putText(frame, diag['elapsedTime'], (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255))                
 
-    cv2.imshow("Attendance", frame)        
+    cv2.imshow("Home Pro Security System", frame)        
     if key == ord('q'):
         break
 

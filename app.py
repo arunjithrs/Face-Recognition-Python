@@ -17,6 +17,9 @@ import os
 import json
 import shutil, sys  
 
+import traceback
+from werkzeug.wsgi import ClosingIterator
+
 #raspi ip
 IP = 'http://192.168.43.90:8080/'
 
@@ -26,17 +29,61 @@ face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yol
 parser = argparse.ArgumentParser(description='Home pro security system')
 args = parser.parse_args()
 
+class AfterResponse:
+    def __init__(self, app=None):
+        self.callbacks = []
+        if app:
+            self.init_app(app)
+
+    def __call__(self, callback):
+        self.callbacks.append(callback)
+        return callback
+
+    def init_app(self, app):
+        # install extension
+        app.after_response = self
+
+        # install middleware
+        app.wsgi_app = AfterResponseMiddleware(app.wsgi_app, self)
+
+    def flush(self):
+        for fn in self.callbacks:
+            try:
+                fn()
+            except Exception:
+                traceback.print_exc()
+
+class AfterResponseMiddleware:
+    def __init__(self, application, after_response_ext):
+        self.application = application
+        self.after_response_ext = after_response_ext
+
+    def __call__(self, environ, after_response):
+        iterator = self.application(environ, after_response)
+        try:
+            return ClosingIterator(iterator, [self.after_response_ext.flush])
+        except Exception:
+            traceback.print_exc()
+            return iterator
+
+
+
+app = Flask("after_response")
+AfterResponse(app)
+
 # initialize database
 db = {"names": [], "embeddings": []}
 dbtree = ""
+reload_flag = False
 try:
-    db = json.loads(open('face_data.txt').read())
+    # db = json.loads(open('face_data.txt').read())
+    with open("face_data.txt", "r+") as f:
+        db = json.load(f)
     dbtree = spatial.KDTree(db["embeddings"])
 except:
     pass
 
-app = Flask(__name__)
-
+print("## Server Starts..##")
 
 @app.route("/")
 def hello():
@@ -56,13 +103,18 @@ def list_users():
 # delete user from db
 @app.route("/api/delete", methods=['POST'])
 def delete_user():
-    print("pkkkok")
+
     name = request.form["name"];
 
+    #remove from dbtree
+    # global dbtree
+    # db = {"names": [], "embeddings": []}
+    # dbtree = spatial.KDTree()
+
+    global db
     users = TinyDB('db/users.json')
     User = Query();
     users_list = users.all();
-    print(users_list)
     users.remove(User.name.search(name))
 
     # find position of name in face db
@@ -83,6 +135,8 @@ def delete_user():
     shutil.rmtree('images/' + name);
     shutil.rmtree('dbimg/' + name);
 
+    global reload_flag
+    reload_flag = True
     return jsonify({"success": True, "message": "User deleted successfully"})
 
 
@@ -101,10 +155,11 @@ def user_access_permission():
 @app.route("/api/user", methods=['GET', 'POST'])
 def user():
     if request.method == 'POST':
+
         imageBlob = request.form['image']
         name = request.form['name'].rstrip().lstrip()
         access = request.form['access']
-
+        print(name)
         # find position of name in db
         flag = False
         for i in db['names']:
@@ -163,7 +218,29 @@ def user():
                     else:
                         if return_name != "unknown":
                             return jsonify({"success": False, "message": "User already exist"})
+            else:
+                return jsonify({"success": False, "message": "Not valid"})
 
+    return jsonify({"success": False, "message": "Not valid"})
+
+# # to restart app
+# @app.after_request
+# def after_request(request):
+#     global reload_flag
+#     time.sleep(2)
+
+    # if(reload_flag):
+    #     os.execl(sys.executable, sys.executable, * sys.argv)
+
+#     return request
+
+
+@app.after_response
+def after():
+    global reload_flag
+    time.sleep(2)    
+    if(reload_flag):
+        os.execl(sys.executable, sys.executable, * sys.argv)
 
 # enroll a new face into db
 def enroll(embedding, face, name):
@@ -186,12 +263,16 @@ def enroll(embedding, face, name):
 
     return "success"
 
+enroll.counter = 0
+
 
 # search for a face in the db
 def identify_face(embedding):
+
     if dbtree != "":
         dist, idx = dbtree.query(embedding)                               
         name = db["names"][idx]
+        print(name)
         if dist > (0.4):
             name = "unknown"
     else:
@@ -200,6 +281,6 @@ def identify_face(embedding):
     return name
 
 
-
 if __name__ == "__main__":
     app.run(host='0.0.0.0' , port=5000)
+
