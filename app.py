@@ -15,6 +15,7 @@ import datetime, time
 from scipy import spatial
 import os
 import json
+import shutil, sys  
 
 #raspi ip
 IP = 'http://192.168.43.90:8080/'
@@ -41,6 +42,7 @@ app = Flask(__name__)
 def hello():
     return "Hello world"
 
+# list all users
 @app.route("/api/users")
 def list_users():
 
@@ -51,9 +53,41 @@ def list_users():
 
     return jsonify(users_list)
 
+# delete user from db
+@app.route("/api/delete", methods=['POST'])
+def delete_user():
+    print("pkkkok")
+    name = request.form["name"];
+
+    users = TinyDB('db/users.json')
+    User = Query();
+    users_list = users.all();
+    print(users_list)
+    users.remove(User.name.search(name))
+
+    # find position of name in face db
+    index = 0;
+    for i in db['names']:
+        if(i == name):
+            break
+        index+=1
+
+    # remove item from db
+    db['names'].remove(name);
+    db['embeddings'].remove(db['embeddings'][index])
+
+    with open('face_data.txt','w') as att:
+        att.write(json.dumps(db))
+
+    # delete imagesdirectory
+    shutil.rmtree('images/' + name);
+    shutil.rmtree('dbimg/' + name);
+
+    return jsonify({"success": True, "message": "User deleted successfully"})
+
+
 @app.route("/api/access", methods=['POST'])
 def user_access_permission():
-    # access = request.form.access;
     name = request.form["name"];
     access = request.form['access'];
 
