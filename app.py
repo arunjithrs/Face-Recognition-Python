@@ -17,11 +17,13 @@ import os
 import json
 import shutil, sys  
 
+import after_response
+
 import traceback
 from werkzeug.wsgi import ClosingIterator
 
 #raspi ip
-IP = 'http://192.168.43.90:8080/'
+IP = 'http://192.168.43.90:5000/'
 
 # api address
 face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yolo&returnFaceLandmarks=true"
@@ -29,47 +31,8 @@ face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yol
 parser = argparse.ArgumentParser(description='Home pro security system')
 args = parser.parse_args()
 
-class AfterResponse:
-    def __init__(self, app=None):
-        self.callbacks = []
-        if app:
-            self.init_app(app)
-
-    def __call__(self, callback):
-        self.callbacks.append(callback)
-        return callback
-
-    def init_app(self, app):
-        # install extension
-        app.after_response = self
-
-        # install middleware
-        app.wsgi_app = AfterResponseMiddleware(app.wsgi_app, self)
-
-    def flush(self):
-        for fn in self.callbacks:
-            try:
-                fn()
-            except Exception:
-                traceback.print_exc()
-
-class AfterResponseMiddleware:
-    def __init__(self, application, after_response_ext):
-        self.application = application
-        self.after_response_ext = after_response_ext
-
-    def __call__(self, environ, after_response):
-        iterator = self.application(environ, after_response)
-        try:
-            return ClosingIterator(iterator, [self.after_response_ext.flush])
-        except Exception:
-            traceback.print_exc()
-            return iterator
-
-
-
-app = Flask("after_response")
-AfterResponse(app)
+app = Flask(__name__)
+after_response.AfterResponse(app)
 
 # initialize database
 db = {"names": [], "embeddings": []}
@@ -83,11 +46,14 @@ try:
 except:
     pass
 
-print("## Server Starts..##")
 
 @app.route("/")
 def hello():
     return "Hello world"
+
+@app.route('/images/<path:path>')
+def send_js(path):
+    return send_from_directory('images', path)
 
 # list all users
 @app.route("/api/users")
@@ -105,11 +71,6 @@ def list_users():
 def delete_user():
 
     name = request.form["name"];
-
-    #remove from dbtree
-    # global dbtree
-    # db = {"names": [], "embeddings": []}
-    # dbtree = spatial.KDTree()
 
     global db
     users = TinyDB('db/users.json')
@@ -223,18 +184,7 @@ def user():
 
     return jsonify({"success": False, "message": "Not valid"})
 
-# # to restart app
-# @app.after_request
-# def after_request(request):
-#     global reload_flag
-#     time.sleep(2)
-
-    # if(reload_flag):
-    #     os.execl(sys.executable, sys.executable, * sys.argv)
-
-#     return request
-
-
+# restart server
 @app.after_response
 def after():
     global reload_flag
