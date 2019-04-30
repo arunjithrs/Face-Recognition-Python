@@ -35,8 +35,10 @@ ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(ch)
 
-#visitors db
-db_visitors = TinyDB('visitors.json')
+# db
+db_visitors = TinyDB('db/visitors.json')
+db_settings = TinyDB('db/settings.json')
+db_users = TinyDB('db/users.json')
 
 # attendance register
 att_reg = []
@@ -173,7 +175,7 @@ while True:
                 user_count = 0
                 prev_name = []
 
-            if user_count > 2:
+            if user_count > 4:
                 print("Found some one => ", prev_name)
                 ts = time.time()
                 url = str(ts) + '.jpg'
@@ -188,17 +190,18 @@ while True:
 
                 after_response.send_push(visitors, st)
 
+
                 prev_name = []
                 user_count = 0
                 time.sleep(5)
 
-            # cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,255),5,8)        
-            # cv2.rectangle(frame, (x,y+h-20), (x+w,y+h), (255,0,255), -1, 8)
-            # cv2.putText(frame, "%s"%(name), (x,y+h), cv2.FONT_HERSHEY_DUPLEX, 1,  (255,255,255),2,8)
+            cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,255),5,8)        
+            cv2.rectangle(frame, (x,y+h-20), (x+w,y+h), (255,0,255), -1, 8)
+            cv2.putText(frame, "%s"%(name), (x,y+h), cv2.FONT_HERSHEY_DUPLEX, 1,  (255,255,255),2,8)
   
-        # cv2.putText(frame, diag['elapsedTime'], (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255))                
+        cv2.putText(frame, diag['elapsedTime'], (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255))                
 
-    # cv2.imshow("Home Pro Security System", frame)        
+    cv2.imshow("Home Pro Security System", frame)        
     if key == ord('q'):
         break
 

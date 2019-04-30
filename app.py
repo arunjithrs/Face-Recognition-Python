@@ -31,6 +31,9 @@ face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yol
 parser = argparse.ArgumentParser(description='Home pro security system')
 args = parser.parse_args()
 
+#db
+visitors = TinyDB('db/visitors.json')
+
 app = Flask(__name__)
 after_response.AfterResponse(app)
 
@@ -65,6 +68,26 @@ def list_users():
         user['pro_pic'] = IP + 'images/' + user['name'] + '/' + user['pro_pic']
 
     return jsonify(users_list)
+
+@app.route("/api/private")
+def private_mod_fetch():
+    settings = TinyDB('db/settings.json')
+    settings_list = settings.all();
+    print(settings_list)
+    if(settings_list[0]['private'] == True):
+        return jsonify({"success": True, "message": "True"})
+    else:
+        return jsonify({"success": True, "message": "False"})
+    
+    return jsonify({"success": False, "message": "False"})
+
+@app.route("/api/private/update", methods=['POST'])
+def private_mod_update():
+
+    status = request.form["status"];
+    settings = TinyDB('db/settings.json')
+    settings.update({'private': json.loads(status)})
+    return jsonify({"success": True, "message": "Successfully updated"})
 
 # delete user from db
 @app.route("/api/delete", methods=['POST'])
