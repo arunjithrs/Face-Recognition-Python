@@ -1,6 +1,10 @@
 import traceback
 from werkzeug.wsgi import ClosingIterator
 
+
+import json, ast
+from pusher_push_notifications import PushNotifications
+
 class AfterResponse:
     def __init__(self, app=None):
         self.callbacks = []
@@ -37,3 +41,30 @@ class AfterResponseMiddleware:
         except Exception:
             traceback.print_exc()
             return iterator
+
+
+def send_push(name, time):
+    
+    beams_client = PushNotifications(
+        instance_id='97bc1b7f-aa2a-4760-af68-3052371c6dbd',
+        secret_key='17482EE2588EE046FBA7E20949EBB4CE00AA2325E6FCDDCD3E34202E0A79A5CB',
+    )
+    
+    response = beams_client.publish_to_interests(
+        interests=['hello'],
+        publish_body={
+            'apns': {
+                'aps': {
+                    'alert': 'Hello!'
+                }
+            },
+            'fcm': {
+                'notification': {
+                    'title': 'New access request',
+                    'body': name + " has been requested to open at " + time
+                }
+            }
+        }
+    )
+
+    print(response['publishId'])

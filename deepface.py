@@ -17,6 +17,9 @@ import logging
 import datetime, time
 from scipy import spatial
 import os
+from tinydb import TinyDB, Query
+import after_response
+
 
 face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yolo&returnFaceLandmarks=true"
 
@@ -31,6 +34,9 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(ch)
+
+#visitors db
+db_visitors = TinyDB('visitors.json')
 
 # attendance register
 att_reg = []
@@ -81,26 +87,6 @@ def signal_handler(signal, frame):
     exit(0)
 signal.signal(signal.SIGINT, signal_handler)
 
-    
-# enroll a new face into db
-def enroll(embedding, face):
-    global dbtree
-    cv2.imshow("New Face",face)
-    cv2.waitKey(10)
-    facename = input("New face detected, enter name:")    
-    if facename != "":
-        enroll.counter += 1
-        if not os.path.exists("dbimg/%s"%(facename)):
-            os.makedirs("dbimg/%s"%(facename))
-
-        cv2.imwrite("dbimg/%s/%d.jpg"%(facename,enroll.counter), face)
-        db["names"].append(facename)
-        db["embeddings"].append(embedding)
-        print("Enrolled %s into db!"%facename)
-
-        dbtree = spatial.KDTree(db["embeddings"])
-
-enroll.counter = 0
 
 # search for a face in the db
 def identify_face(embedding):
@@ -108,7 +94,7 @@ def identify_face(embedding):
         dist, idx = dbtree.query(embedding)                               
         name = db["names"][idx]
         print(name)
-        if dist > (0.4 if args.enroll else 0.5):
+        if dist > 0.5:
             name = "unknown"
     else:
         name = "unknown"
@@ -138,6 +124,8 @@ def mark_present(name):
 
 # start processing
 count = 0
+user_count = 0;
+prev_name = []
 while True:
     
     _, framex = cap.read()
@@ -158,29 +146,59 @@ while True:
     if len(result) > 1:
         faces = result[:-1]
         diag = result[-1]['diagnostics']        
-        #print(diag)
 
+        print(user_count)
         for face in faces:
             rect, embedding = [face[i] for i in ['faceRectangle','faceEmbeddings']]
             x,y,w,h, confidence = [rect[i] for i in ['left', 'top', 'width', 'height', 'confidence']]
 
             if confidence < 0.8:
+                user_count = 0
+                prev_name = []
                 continue
 
             name = identify_face(embedding)
-            if args.enroll and name == "unknown":
-                enroll(embedding, frame[y:y+h,x:x+w]) 
+            if(name not in prev_name):
+                prev_name.append(name)
+
+            if name == "unknown":
+                user_count += 1
+
             else:
                 if name != "unknown":
-                    mark_present(name)
+                    user_count += 1
 
-            cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,255),5,8)        
-            cv2.rectangle(frame, (x,y+h-20), (x+w,y+h), (255,0,255), -1, 8)
-            cv2.putText(frame, "%s"%(name), (x,y+h), cv2.FONT_HERSHEY_DUPLEX, 1,  (255,255,255),2,8)
-                        
-        cv2.putText(frame, diag['elapsedTime'], (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255))                
+            mark_present(name)
+            if(name not in prev_name):
+                user_count = 0
+                prev_name = []
 
-    cv2.imshow("Home Pro Security System", frame)        
+            if user_count > 2:
+                print("Found some one => ", prev_name)
+                ts = time.time()
+                url = str(ts) + '.jpg'
+                dt = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                st = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
+
+                cv2.imwrite('visitors/' + url, frame)
+                db_visitors.insert({'name': str(prev_name), 'url': url, 'date': dt, 'time': st})
+                print("Inserted")
+
+                visitors = ", ".join(prev_name)
+
+                after_response.send_push(visitors, st)
+
+                prev_name = []
+                user_count = 0
+                time.sleep(5)
+
+            # cv2.rectangle(frame, (x,y), (x+w,y+h), (255,0,255),5,8)        
+            # cv2.rectangle(frame, (x,y+h-20), (x+w,y+h), (255,0,255), -1, 8)
+            # cv2.putText(frame, "%s"%(name), (x,y+h), cv2.FONT_HERSHEY_DUPLEX, 1,  (255,255,255),2,8)
+  
+        # cv2.putText(frame, diag['elapsedTime'], (0,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255))                
+
+    # cv2.imshow("Home Pro Security System", frame)        
     if key == ord('q'):
         break
 
