@@ -19,6 +19,7 @@ from scipy import spatial
 import os
 from tinydb import TinyDB, Query
 import after_response
+from pygame import mixer
 
 
 face_api = "http://192.168.43.192:5000/inferImage?returnFaceId=true&detector=yolo&returnFaceLandmarks=true"
@@ -37,8 +38,9 @@ logger.addHandler(ch)
 
 # db
 db_visitors = TinyDB('db/visitors.json')
-db_settings = TinyDB('db/settings.json')
-db_users = TinyDB('db/users.json')
+
+#init sound library
+mixer.init()
 
 # attendance register
 att_reg = []
@@ -102,6 +104,10 @@ def identify_face(embedding):
         name = "unknown"
     
     return name
+
+def play_sound(name):
+    mixer.music.load("sounds/" + name + ".mp3")
+    mixer.music.play()
 
 
 # returns minutes since
@@ -175,7 +181,7 @@ while True:
                 user_count = 0
                 prev_name = []
 
-            if user_count > 4:
+            if user_count > 2:
                 print("Found some one => ", prev_name)
                 ts = time.time()
                 url = str(ts) + '.jpg'
@@ -189,22 +195,46 @@ while True:
                 visitors = ", ".join(prev_name)
 
                 # read settings
+
+                db_settings = TinyDB('db/settings.json')
                 db_settings = TinyDB('db/settings.json')
                 settings_list = db_settings.all();
                 private_mode = settings_list[0]['private'];
 
                 # read users list
-                # name_list = []
-                # users_list = db_users.all();
-                # for item in users_list:
-                #     name_list.append(item['name'])
+                name_list = []
+
+                db_users = TinyDB('db/users.json')
+                users_list = db_users.all();
+                for item in users_list:
+                    name_list.append(item)
 
                 if(private_mode == False):
                     if( "unknown" not in  prev_name):
-                        print("door is opening")
+
+                        for itx in prev_name:
+                            access_flag = True;
+                            users_list = db_users.all();
+                            item_index = 0;
+                            for item in users_list:
+                                if(item['name'] == itx and users_list[item_index]['access'] == False):
+                                    access_flag = False
+                                    break
+                                item_index += 1
+                            if(access_flag == False):
+                                break
+
+                        if(access_flag):
+                            play_sound("granted")
+                            print("door is opening")
+                        else:
+                            play_sound("denied")
+                            print("You have no permission to open")
+
                     else:
                         print("Please wait for approval")
                 else:
+                    play_sound("denied")
                     print("aceess denied!")
 
                 after_response.send_push(visitors, st)
