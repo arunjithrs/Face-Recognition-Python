@@ -188,8 +188,26 @@ while True:
 
                 visitors = ", ".join(prev_name)
 
-                after_response.send_push(visitors, st)
+                # read settings
+                db_settings = TinyDB('db/settings.json')
+                settings_list = db_settings.all();
+                private_mode = settings_list[0]['private'];
 
+                # read users list
+                # name_list = []
+                # users_list = db_users.all();
+                # for item in users_list:
+                #     name_list.append(item['name'])
+
+                if(private_mode == False):
+                    if( "unknown" not in  prev_name):
+                        print("door is opening")
+                    else:
+                        print("Please wait for approval")
+                else:
+                    print("aceess denied!")
+
+                after_response.send_push(visitors, st)
 
                 prev_name = []
                 user_count = 0
